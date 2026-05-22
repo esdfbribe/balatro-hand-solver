@@ -108,3 +108,6 @@ Base Mult 977 and 25040 can be reached using standard 4- and 5-card hands, leavi
 In lieu of substantial hand leveling, larger base mult values (e.g. 3248853) also often require additional scoring jokers such as Constellation or Campfire.  To use these jokers, find the factor pairs of the target base mult value.  Use the scoring joker to account for one of the values, and use the hand solver to find a hand for the other value.
 
 Example: 3248853 has factor pairs (3,1082951), (17,191109), and (51,63703).  This results in finding a hand that results in a base mult of 191109 while a Joker like Constellation or Campfire just needs to level up to 17.0.
+
+## Disclosures
+Portions of the codebase were generated using Google Gemini.
