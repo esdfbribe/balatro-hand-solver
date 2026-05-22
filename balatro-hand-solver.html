@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Balatro Solver: Serpent-Plasma (Stable Engine)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0f0f0f; color: #f0f0f0; padding: 20px; }
+        .container { max-width: 1150px; margin: auto; background: #1a1a1a; padding: 30px; border-radius: 15px; border: 1px solid #444; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        .grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 30px; }
+        input, button { padding: 12px; margin: 8px 0; border-radius: 6px; border: 1px solid #555; background: #252525; color: #fff; width: 100%; box-sizing: border-box; }
+        button { padding: 12px; background: #e67e22; cursor: pointer; font-weight: bold; border: none; text-transform: uppercase; letter-spacing: 1px; transition: 0.2s; margin-top: 25px; }
+        button:hover { background: #d35400; transform: translateY(-1px); }
+        button:disabled { background: #555; cursor: not-allowed; transform: none; color: #aaa; }
+        .btn-secondary { background: #34495e; margin-top: 10px; }
+        .btn-secondary:hover { background: #2c3e50; }
+        .results { margin-top: 25px; background: #050505; padding: 20px; height: 500px; overflow-y: scroll; font-family: 'Fira Code', 'Consolas', monospace; border: 1px solid #444; color: #e67e22; border-left: 4px solid #e67e22; }
+        .info-box { background: rgba(230, 126, 34, 0.1); border: 1px solid #e67e22; padding: 15px; border-radius: 8px; margin-bottom: 25px; font-size: 0.85em; line-height: 1.4; }
+        h3 { color: #f39c12; margin-top: 0; text-transform: uppercase; font-size: 1em; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 15px; }
+        .check-item { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; cursor: pointer; font-size: 0.95em; user-select: none; }
+        .check-item input { width: auto; margin: 0; cursor: pointer; }
+        .hand-header { color: #f1c40f; font-size: 1.3em; margin-top: 25px; border-bottom: 2px solid #f1c40f; padding-bottom: 5px; font-weight: bold; }
+        .level-header { color: #3498db; font-size: 1.1em; margin-top: 12px; margin-left: 10px; font-weight: bold; }
+        .sequence-line { margin-left: 30px; margin-bottom: 5px; color: #bbb; border-left: 2px solid #333; padding-left: 10px; font-size: 0.85em; white-space: pre-wrap; }
+        .garbage-note { color: #888; font-style: italic; font-size: 0.9em; margin-left: 5px; }
+        .tooltip { position: relative; display: inline-block; border-bottom: 1px dotted #ccc; cursor: help; font-weight: bold; }
+        .tooltip .tooltiptext { visibility: hidden; width: 240px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 8px; position: absolute; z-index: 10; bottom: 125%; left: 50%; margin-left: -120px; opacity: 0; transition: opacity 0.3s; font-size: 0.85em; font-weight: normal; border: 1px solid #555; }
+        .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Balatro Hand Solver</h2>
+    
+    <div class="info-box">
+        Balatro Hand Solver finds all possible 1- to 5-card hands and hand levels that achieve a targeted base mult score.
+    </div>
+
+    <div class="grid">
+        <div>
+            <h3>Scoring Parameters</h3>
+            <label class="tooltip">Target Base Mult
+                <span class="tooltiptext">Common base mults for near naneinf ("neareinf") are 977 and 25040.</span>
+            </label>
+            <input type="number" id="targetMult" value="977">
+            
+            <label>Search Base Mult Range:</label>
+            <div style="display: flex; gap: 10px;">
+                <input type="number" id="minBase" value="1" placeholder="Min">
+                <input type="number" id="maxBase" value="1000" placeholder="Max">
+            </div>
+
+            <div style="margin-top: 20px; background: #222; padding: 15px; border-radius: 8px;">
+                <label class="check-item" title="Show how many non-scoring cards to play to fill out the hand type.">
+                    <input type="checkbox" id="showGarbage" checked> <span>Suggest Non-Scoring Cards</span>
+                </label>
+            </div>
+        </div>
+
+        <div>
+            <h3>Scoring Inventory</h3>
+            <div class="check-item"><input type="checkbox" id="hasGlass" checked> <span>Glass Enhancement (x2 Mult)</span></div>
+            <div style="height: 1px; background: #444; margin: 15px 0;"></div>
+            <div class="check-item"><input type="checkbox" id="hasHolo" checked> <span>Holographic (+10 Mult)</span></div>
+            <div class="check-item"><input type="checkbox" id="hasHoloRed" checked> <span>Holo + Red Seal</span></div>
+            <div class="check-item"><input type="checkbox" id="hasPoly" checked> <span>Polychrome (x1.5 Mult)</span></div>
+            <div class="check-item"><input type="checkbox" id="hasPolyRed" checked> <span>Poly + Red Seal</span></div>
+            <div class="check-item"><input type="checkbox" id="hasPlainRed" checked> <span>Standard + Red Seal</span></div>
+        </div>
+
+        <div>
+            <h3>Target Hands</h3>
+            <div class="check-item"><input type="checkbox" id="chk_High_Card" checked> <span>High Card</span></div>
+            <div class="check-item"><input type="checkbox" id="chk_Pair" checked> <span>Pair</span></div>
+            <div class="check-item"><input type="checkbox" id="chk_Two_Pair" checked> <span>Two Pair</span></div>
+            <div class="check-item"><input type="checkbox" id="chk_Three_of_a_Kind" checked> <span>Three of a Kind</span></div>
+            <div class="check-item"><input type="checkbox" id="chk_Straight" checked> <span>Straight</span></div>
+            <div class="check-item"><input type="checkbox" id="chk_Flush" checked> <span>Flush</span></div>
+            <div class="check-item"><input type="checkbox" id="chk_Full_House" checked> <span>Full House</span></div>
+            <div class="check-item"><input type="checkbox" id="chk_Four_of_a_Kind" checked> <span>Four of a Kind</span></div>
+            <div class="check-item"><input type="checkbox" id="chk_Straight_Flush" checked> <span>Straight Flush</span></div>
+            <div class="check-item"><input type="checkbox" id="chk_Five_of_a_Kind" checked> <span>Five of a Kind</span></div>
+            <div class="check-item"><input type="checkbox" id="chk_Flush_House" checked> <span>Flush House</span></div>
+            <div class="check-item"><input type="checkbox" id="chk_Flush_Five" checked> <span>Flush Five</span></div>
+        </div>
+    </div>
+
+    <button id="searchBtn" onclick="startSolver()">Find Valid Sequences</button>
+    <button id="exportBtn" class="btn-secondary" onclick="exportToCSV()" disabled>Export Result to CSV</button>
+
+    <div class="results" id="output">Configure run and search...</div>
+</div>
+
+<script>
+/**
+ * Internal definitions for Balatro's standard poker hands.
+ * start: Base mult at level 1.
+ * scale: How much the base mult increases per planet level.
+ * maxC: Maximum number of scoring cards allowed in this hand type.
+ * id: HTML checkbox element ID binding.
+ */
+const hands = {
+    "High Card": { start: 1, scale: 1, maxC: 1, id: "chk_High_Card" },
+    "Pair": { start: 2, scale: 1, maxC: 2, id: "chk_Pair" },
+    "Two Pair": { start: 2, scale: 1, maxC: 4, id: "chk_Two_Pair" },
+    "Three of a Kind": { start: 3, scale: 2, maxC: 3, id: "chk_Three_of_a_Kind" },
+    "Straight": { start: 4, scale: 2, maxC: 5, id: "chk_Straight" },
+    "Flush": { start: 4, scale: 2, maxC: 5, id: "chk_Flush" },
+    "Full House": { start: 4, scale: 2, maxC: 5, id: "chk_Full_House" },
+    "Four of a Kind": { start: 7, scale: 3, maxC: 4, id: "chk_Four_of_a_Kind" },
+    "Straight Flush": { start: 8, scale: 3, maxC: 5, id: "chk_Straight_Flush" },
+    "Five of a Kind": { start: 12, scale: 3, maxC: 5, id: "chk_Five_of_a_Kind" },
+    "Flush House": { start: 14, scale: 3, maxC: 5, id: "chk_Flush_House" },
+    "Flush Five": { start: 16, scale: 3, maxC: 5, id: "chk_Flush_Five" }
+};
+
+// Global array holding result sequences for the CSV export feature
+let currentCsvData = [];
+
+/**
+ * Helper function to yield the thread back to the browser.
+ * This prevents the UI from locking up and freezing during intense permutation calculations.
+ */
+const yieldThread = () => new Promise(resolve => setTimeout(resolve, 0));
+
+/**
+ * Main execution function triggered by the "Find Valid Sequences" button.
+ * Grabs UI inputs, builds the eligible card pool, and initiates the recursive search algorithm.
+ */
+async function startSolver() {
+    // Collect primary scaling constraints
+    const minB = parseInt(document.getElementById('minBase').value);
+    const maxB = parseInt(document.getElementById('maxBase').value);
+    const output = document.getElementById('output');
+    const searchBtn = document.getElementById('searchBtn');
+    const exportBtn = document.getElementById('exportBtn');
+
+    // Space Check: Warn user if the requested search range is heavily taxing
+    const totalSpace = maxB - minB;
+    if (totalSpace > 1000) {
+        const proceed = confirm("You are initiating a search across a range of " + totalSpace + " base mults. This may take a while. Proceed?");
+        if (!proceed) {
+            output.innerHTML = "Search cancelled by user.";
+            return;
+        }
+    }
+
+    // Lock UI state during active calculation
+    searchBtn.disabled = true;
+    exportBtn.disabled = true;
+    output.innerHTML = "Building pool...";
+    currentCsvData = [];
+    await yieldThread();
+
+    // Collect calculation targets and display options
+    const target = parseFloat(document.getElementById('targetMult').value);
+    const showNonScoring = document.getElementById('showGarbage').checked;
+    const includeGlass = document.getElementById('hasGlass').checked;
+
+    // Filter active hands based on user checkbox selection
+    const activeHands = {};
+    for (let hName in hands) {
+        activeHands[hName] = document.getElementById(hands[hName].id).checked;
+    }
+
+    // Initialize core structural arrays for building permutations
+    const pool = [];
+    const enhancements = [
+        {name: "None", add: 0, x: 1},
+        {name: "Mult", add: 4, x: 1}
+    ];
+    if (includeGlass) {
+        enhancements.push({name: "Glass", add: 0, x: 2}); // Adds Glass to the generation loop if enabled
+    }
+
+    const editions = [
+        {name: "None", add: 0, x: 1},
+        {name: "Holo", add: 10, x: 1},
+        {name: "Poly", add: 0, x: 1.5}
+    ];
+
+    // Build the dynamic pool of allowed cards based on inventory checkboxes
+    enhancements.forEach(en => {
+        editions.forEach(ed => {
+            // Skip invalid baseline combination
+            if (en.name === "None" && ed.name === "None") return;
+            
+            // Check specific edition toggles
+            if (ed.name === "Holo" && !document.getElementById('hasHolo').checked) return;
+            if (ed.name === "Poly" && !document.getElementById('hasPoly').checked) return;
+
+            // Generate standard base card object
+            const cardObj = {
+                name: en.name + "/" + ed.name,
+                enhA: en.add, enhM: en.x,
+                edA: ed.add, edM: ed.x,
+                seal: false
+            };
+            pool.push(cardObj);
+
+            // Generate Red Seal variant of the card if explicitly permitted
+            let sealAllowed = (ed.name === "None" && document.getElementById('hasPlainRed').checked) ||
+                              (ed.name === "Holo" && document.getElementById('hasHoloRed').checked) ||
+                              (ed.name === "Poly" && document.getElementById('hasPolyRed').checked);
+            if (sealAllowed) {
+                pool.push({ ...cardObj, name: cardObj.name + "+Red", seal: true });
+            }
+        });
+    });
+
+    // Object to store successful sequence pathways organized by hand and level
+    let groupedResults = {};
+    let totalTasks = Object.keys(hands).length * (maxB - minB + 1);
+    let completedTasks = 0;
+
+    // Outer Loop: Iterate over all 12 poker hand types
+    for (let hName in hands) {
+        let cfg = hands[hName];
+        
+        // Skip entirely if user unchecked the hand
+        if (!activeHands[hName]) {
+            completedTasks += (maxB - minB + 1);
+            continue;
+        }
+        
+        groupedResults[hName] = {};
+
+        // Inner Loop: Iterate through requested base mult spectrum
+        for (let b = minB; b <= maxB; b++) {
+            let diff = b - cfg.start;
+            
+            // Only calculate if the current base mult is naturally reachable by the hand's planet scaling
+            if (diff >= 0 && diff % cfg.scale === 0) {
+                let lvl = (diff / cfg.scale) + 1;
+
+                if (!groupedResults[hName][lvl]) groupedResults[hName][lvl] = { b: b, seqs: [] };
+
+                // Edge Case: If the hand's natural base mult matches target exactly before any cards are played
+                if (b === target) {
+                    let cleanNonScoring = (showNonScoring && cfg.maxC > 0) ? " <span class='garbage-note'>(Play " + cfg.maxC + " non-scoring cards)</span>" : "";
+                    groupedResults[hName][lvl].seqs.push("CLEAN HAND" + cleanNonScoring);
+                    currentCsvData.push({ hand: hName, level: lvl, baseMult: b, cards: "CLEAN HAND (Play " + cfg.maxC + " non-scoring card(s))" });
+                }
+
+                // Permutation Engine: Test combinations for up to the max scoring cards allowed by the hand type
+                for (let n = 1; n <= cfg.maxC; n++) {
+                    search(b, b, [], 0, n, pool, target, (foundSeq) => {
+                        let nonScoringNeeded = cfg.maxC - n;
+                        let nonScoringText = (showNonScoring && nonScoringNeeded > 0) ? " <span class='garbage-note'>+ " + nonScoringNeeded + " non-scoring card" + (nonScoringNeeded > 1 ? 's' : '') + "</span>" : "";
+                        groupedResults[hName][lvl].seqs.push("[" + foundSeq.join(' | ') + "]" + nonScoringText);
+                        
+                        let csvCardsVal = "[" + foundSeq.join(' | ') + "]" + (nonScoringNeeded > 0 ? " + " + nonScoringNeeded + " non-scoring card" + (nonScoringNeeded > 1 ? 's' : '') : "");
+                        currentCsvData.push({ hand: hName, level: lvl, baseMult: b, cards: csvCardsVal });
+                    });
+                }
+
+                // Cleanup: Delete level entries that yielded zero successful sequences
+                if (groupedResults[hName][lvl].seqs.length === 0) delete groupedResults[hName][lvl];
+            }
+
+            completedTasks++;
+            
+            // Provide UI updates every 50 tasks to show progress and avoid browser hard-locks
+            if (completedTasks % 50 === 0 || completedTasks === totalTasks) {
+                let percent = Math.floor((completedTasks / totalTasks) * 100);
+                output.innerHTML = "Searching... " + percent + "%<br><span style='color:#888; font-size:0.9em;'>Currently checking: " + hName + "</span>";
+                await yieldThread();
+            }
+        }
+        
+        // Cleanup: Delete hand entries that yielded zero successful levels
+        if (Object.keys(groupedResults[hName]).length === 0) delete groupedResults[hName];
+    }
+
+    output.innerHTML = "Rendering results...";
+    await yieldThread();
+
+    // DOM Generation: Convert JSON structured groupedResults into styled HTML
+    let html = "";
+    for (let hand in groupedResults) {
+        html += "<details open><summary class='hand-header'>" + hand + "</summary>";
+        // Sort levels numerically to maintain organized display
+        let sortedLvls = Object.keys(groupedResults[hand]).sort((a,b) => a-b);
+        sortedLvls.forEach(lvl => {
+            let data = groupedResults[hand][lvl];
+            html += "<details open><summary class='level-header'>Level " + lvl + " (Base Mult " + data.b + ")</summary>";
+            data.seqs.forEach(s => {
+                html += "<div class='sequence-line'>" + s + "</div>";
+            });
+			html += "</details>";
+        });
+		html += "</details>"
+    }
+    
+    // Final UI Un-lock and Output Render
+    output.innerHTML = html || "No matching combinations found for the selected parameters.";
+    searchBtn.disabled = false;
+    
+    // Enable CSV Export button only if sequences were successfully found
+    if (currentCsvData.length > 0) {
+        document.getElementById('exportBtn').disabled = false;
+    }
+}
+
+/**
+ * Core Algorithm: Recursive Depth-First Search (DFS)
+ * Explores all possible card combinations up to the maximum depth constraint.
+ * * @param {number} base - The starting base mult of the hand prior to scoring.
+ * @param {number} cur - The current accumulating mult during the recursive loop.
+ * @param {Array} seq - An array tracking the names of the cards in the current sequence.
+ * @param {number} d - The current depth (number of cards processed so far).
+ * @param {number} max - The maximum depth (number of cards allowed for this specific search branch).
+ * @param {Array} pool - The active array of user-allowed card objects.
+ * @param {number} target - The destination base mult value we are trying to perfectly match.
+ * @param {Function} cb - The callback function executed when a successful match is found.
+ */
+function search(base, cur, seq, d, max, pool, target, cb) {
+    // Base Case: If we have reached the required number of cards for this test branch
+    if (d === max) {
+        // Floating point precision safeguard (1e-8 tolerance) to prevent decimal rounding misses
+        if (Math.abs(cur - target) < 1e-8) cb([...seq]);
+        return;
+    }
+    
+    // Optimization Pruning: Abort the branch entirely if our current mult grossly exceeds the target
+    if (cur > target * 2.5) return;
+    
+    // Recursion Phase: Iterate sequentially over every card available in the pool
+    for (let i = 0; i < pool.length; i++) {
+        let c = pool[i];
+        let next = cur;
+        
+        // Execute primary card trigger (Order of Operations: Enhancements then Editions)
+        next = (next + c.enhA) * c.enhM;
+        next = (next + c.edA) * c.edM;
+        
+        // Execute secondary card trigger if Red Seal is present
+        if (c.seal) {
+            next = (next + c.enhA) * c.enhM;
+            next = (next + c.edA) * c.edM;
+        }
+        
+        // Push this card into the sequence path, dive deeper, then pop it out to test the next branch
+        seq.push(c.name);
+        search(base, next, seq, d+1, max, pool, target, cb);
+        seq.pop();
+    }
+}
+
+/**
+ * Utility Function: Converts the in-memory array of results into a formatted .CSV file.
+ * Handles escaping quotes and forcing the browser to prompt a file download.
+ */
+function exportToCSV() {
+    if (currentCsvData.length === 0) return;
+    
+    // Initialize CSV headers
+    let csvContent = "Hand Name,Level,Base Mult,Cards\n";
+    
+    // Map JSON data to CSV rows
+    currentCsvData.forEach(row => {
+        // Escape internal double quotes (e.g., inside the Non-Scoring card string)
+        let escapedHand = '"' + row.hand.replace(/"/g, '""') + '"';
+        let escapedCards = '"' + row.cards.replace(/"/g, '""') + '"';
+        csvContent += escapedHand + "," + row.level + "," + row.baseMult + "," + escapedCards + "\n";
+    });
+    
+    // Generate a downloadable Blob representation of the CSV string
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    
+    // Trigger hidden download sequence
+    link.setAttribute("href", url);
+    link.setAttribute("download", "balatro_sequences_" + document.getElementById('targetMult').value + ".csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+</script>
+</body>
+</html>
